@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finger Volume Controller Model</title>
+<style>
+  * {margin:0; padding:0; box-sizing:border-box;}
+  body, html {
+    width:100%; height:100%; font-family: 'Segoe UI', sans-serif;
+    overflow:hidden; background: linear-gradient(135deg, #000000, #0a0a1a, #101035, #0a0a1a); color:#f0f0f0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+  }
+
+  h1 {
+    position: absolute; top:20%; left:50%; transform:translate(-50%, -20%);
+    font-size:3em; font-weight:600; text-align:center; letter-spacing:1px;
+  }
+
+  .audio-upload {
+    position: absolute; top:50%; left:50%; transform:translateX(-50%);
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+  }
+
+  input[type="file"] {
+    padding:10px 15px; border-radius:8px; border:1px solid #333; background:#1a1a2e; color:#f0f0f0; cursor:pointer;
+  }
+  input[type="file"]:hover { background:#2c2c44; border-color:#555; }
+
+  button {
+    margin-top:20px; padding:10px 20px; border:none; border-radius:8px; cursor:pointer;
+    background:#1a1a2e; color:#f0f0f0; font-size:1em;
+  }
+  button:hover { background:#2c2c44; }
+
+  #controller { display:none; width:100%; height:100%; position:absolute; top:0; left:0; }
+  video { display:none; }
+  canvas { position:absolute; top:0; left:0; width:100%; height:100%; z-index:1; }
+  #volumeBarContainer { position:absolute; bottom:40px; width:80%; height:20px; background:#333; border-radius:10px; }
+  #volumeBar { height:100%; width:0%; background:#00ff99; border-radius:10px; }
+</style>
+</head>
+<body>
+
+<h1>Finger Volume Controller Model</h1>
+
+<div class="audio-upload">
+  <label for="audioInput">Upload Audio:</label>
+  <input type="file" id="audioInput" accept="audio/*">
+  <button id="startBtn">Start</button>
+  <audio id="audioPlayer" controls></audio>
+</div>
+
+<div id="controller">
+  <audio id="controllerAudio" autoplay loop></audio>
+  <video id="webcam" autoplay playsinline></video>
+  <canvas id="canvas"></canvas>
+  <div id="volumeBarContainer">
+    <div id="volumeBar"></div>
+  </div>
+</div>
+
+<script type="module">
+import {Hands} from 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js';
+import {Camera} from 'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js';
+
+const audioInput = document.getElementById('audioInput');
+const startBtn = document.getElementById('startBtn');
+const audioPlayer = document.getElementById('audioPlayer');
+const controllerDiv = document.getElementById('controller');
+const controllerAudio = document.getElementById('controllerAudio');
+const videoElement = document.getElementById('webcam');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const volumeBar = document.getElementById('volumeBar');
+
+let audioFile = null;
+
+audioInput.addEventListener('change', (e)=>{
+    audioFile = e.target.files[0];
+    if(audioFile) {
+        const url = URL.createObjectURL(audioFile);
+        audioPlayer.src = url;
+    }
+});
+
+startBtn.addEventListener('click', ()=>{
+    if(audioFile){
+        const url = URL.createObjectURL(audioFile);
+        controllerAudio.src = url;
+        controllerAudio.play();
+
+        document.querySelector('.audio-upload').style.display = 'none';
+        controllerDiv.style.display = 'block';
+
+        initFingerVolumeControl();
+    }
+});
+
+function initFingerVolumeControl(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const hands = new Hands({locateFile:(file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+    hands.setOptions({maxNumHands:1, modelComplexity:1, minDetectionConfidence:0.7, minTrackingConfidence:0.7});
+
+    hands.onResults(results=>{
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        if(results.multiHandLandmarks && results.multiHandLandmarks.length>0){
+            const lm = results.multiHandLandmarks[0];
+            const thumb = lm[4];
+            const index = lm[8];
+
+            const dx = (thumb.x - index.x)*canvas.width;
+            const dy = (thumb.y - index.y)*canvas.height;
+            const distance = Math.sqrt(dx*dx + dy*dy);
+
+            let volume = Math.min(Math.max((distance-20)/200,0),1);
+            controllerAudio.volume = volume;
+            volumeBar.style.width = (volume*100)+'%';
+
+            ctx.fillStyle = '#00ff99';
+            ctx.beginPath(); ctx.arc(thumb.x*canvas.width, thumb.y*canvas.height,10,0,Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(index.x*canvas.width, index.y*canvas.height,10,0,Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#00ff99';
+            ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(thumb.x*canvas.width, thumb.y*canvas.height);
+            ctx.lineTo(index.x*canvas.width, index.y*canvas.height);
+            ctx.stroke();
+        }
+    });
+
+    const camera = new Camera(videoElement, {
+        onFrame: async()=>{ await hands.send({image:videoElement}); },
+        width:640, height:480
+    });
+    camera.start();
+
+    window.addEventListener('resize', ()=>{ canvas.width=window.innerWidth; canvas.height=window.innerHeight; });
+}
+</script>
+
+</body>
+</html>
