@@ -239,6 +239,29 @@
             animation: pulse 2s infinite;
         }
         
+        .feature-list {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            margin: 30px 0;
+        }
+        
+        .feature {
+            text-align: center;
+            width: 30%;
+            min-width: 200px;
+            margin: 15px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            color: #bb86fc;
+        }
+        
         @keyframes pulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.1); }
@@ -262,6 +285,10 @@
             h2 {
                 font-size: 1.5rem;
             }
+            
+            .feature {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -270,17 +297,35 @@
         <!-- Page 1: Introduction -->
         <div class="page active" id="page1">
             <h1>Finger Volume Controller</h1>
-            <h2>Control Audio with Hand Gestures</h2>
+            <h2>Revolutionary Audio Control with Hand Gestures</h2>
             
             <p class="description">
-                This innovative application allows you to control audio volume using hand gestures detected through your webcam.
-                Simply upload an audio file and use your thumb and index finger to adjust the volume.
+                Experience the future of audio control. This innovative application uses advanced hand tracking technology
+                to let you control audio volume with simple finger gestures - no physical contact required.
             </p>
             
             <div class="hand-icon">👆</div>
             
+            <div class="feature-list">
+                <div class="feature">
+                    <div class="feature-icon">🎵</div>
+                    <h3>Upload Any Audio</h3>
+                    <p>Support for MP3, WAV, and other audio formats</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📱</div>
+                    <h3>Webcam Control</h3>
+                    <p>Use your device's camera for gesture detection</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">✨</div>
+                    <h3>Intuitive Interface</h3>
+                    <p>Simple, clean design with visual feedback</p>
+                </div>
+            </div>
+            
             <div class="upload-section">
-                <button class="btn" id="getStartedBtn">Get Started</button>
+                <button class="btn" id="getStartedBtn">Get Started Now</button>
             </div>
         </div>
         
@@ -289,6 +334,7 @@
             <h1>Select Your Audio</h1>
             <p class="description">
                 Choose an audio file from your device to control with hand gestures.
+                Supported formats: MP3, WAV, OGG, and more.
             </p>
             
             <div class="upload-section">
@@ -334,10 +380,11 @@
                 <div class="instructions">
                     <h3>How to use:</h3>
                     <ul>
-                        <li>Make sure your webcam can see your hand clearly</li>
+                        <li>Make sure your webcam can see your hand clearly with good lighting</li>
                         <li>Bring your thumb and index finger closer together to decrease volume</li>
                         <li>Move your thumb and index finger apart to increase volume</li>
                         <li>Keep other fingers relaxed for best detection</li>
+                        <li>Make sure to allow camera permissions when prompted</li>
                     </ul>
                 </div>
             </div>
@@ -481,24 +528,45 @@
         
         // Initialize audio context when user selects a file
         function setupAudioContext() {
+            // Close existing audio context if any
             if (audioContext) {
                 audioContext.close();
             }
             
+            // Create new audio context
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Check if we already have a source node and disconnect it
+            if (source) {
+                source.disconnect();
+            }
+            
+            // Create new nodes
             gainNode = audioContext.createGain();
             source = audioContext.createMediaElementSource(audioElement);
             
+            // Connect nodes: source -> gain -> destination
             source.connect(gainNode);
             gainNode.connect(audioContext.destination);
             
             // Set initial volume
             gainNode.gain.value = volume;
             updateVolumeDisplay();
+            
+            // Resume audio context if it's suspended
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
         }
         
         // Start webcam and hand tracking
         function startHandTracking() {
+            // Check if browser supports getUserMedia
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                status.textContent = "Webcam access is not supported in your browser.";
+                return;
+            }
+            
             camera = new Camera(webcam, {
                 onFrame: async () => {
                     await hands.send({image: webcam});
@@ -548,18 +616,40 @@
                 audioElement.addEventListener('loadedmetadata', () => {
                     setupAudioContext();
                 });
+                
+                // Play the audio when it's ready
+                audioElement.addEventListener('canplay', () => {
+                    audioElement.play().catch(e => {
+                        console.log("Audio play failed, might need user interaction: ", e);
+                    });
+                });
             }
         });
         
         startControlBtn.addEventListener('click', () => {
             showPage(page3);
             startHandTracking();
+            
+            // Play audio when starting control
+            if (audioElement.src) {
+                audioElement.play().catch(e => {
+                    console.log("Audio play failed: ", e);
+                    status.textContent = "Click on the audio player to start playback";
+                });
+            }
         });
         
         backToUploadBtn.addEventListener('click', () => {
             stopHandTracking();
             showPage(page2);
         });
+        
+        // Fix for audio context on user interaction
+        document.addEventListener('click', function() {
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+        }, { once: true });
         
         // Initial volume display
         updateVolumeDisplay();
