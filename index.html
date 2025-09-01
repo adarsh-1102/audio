@@ -1,166 +1,418 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Finger Volume Controller Model</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box;}
-  body, html{
-    width:100%; height:100%; font-family:'Segoe UI', sans-serif;
-    overflow:hidden; background:linear-gradient(135deg,#000,#0a0a1a,#101035,#0a0a1a);
-    color:#f0f0f0; display:flex; flex-direction:column; align-items:center; justify-content:center;
-  }
-  h1{
-    position:absolute; top:20%; left:50%; transform:translateX(-50%);
-    font-size:3em; text-align:center; font-weight:600;
-  }
-  .audio-upload{
-    position:absolute; top:50%; left:50%; transform:translateX(-50%);
-    display:flex; flex-direction:column; align-items:center; gap:10px;
-  }
-  input[type="file"]{
-    padding:10px 15px; border-radius:8px; border:1px solid #333;
-    background:#1a1a2e; color:#f0f0f0; cursor:pointer;
-  }
-  input[type="file"]:hover{ background:#2c2c44; border-color:#555; }
-  button{
-    padding:10px 20px; border:none; border-radius:8px; cursor:pointer;
-    background:#1a1a2e; color:#f0f0f0; font-size:1em;
-  }
-  button:hover{ background:#2c2c44; }
-  #controller{ display:none; width:100%; height:100%; position:absolute; top:0; left:0; }
-  video{display:none;}
-  canvas{position:absolute; top:0; left:0; width:100%; height:100%; z-index:1;}
-  #volumeBarContainer{position:absolute; bottom:40px; width:80%; height:20px; background:#333; border-radius:10px;}
-  #volumeBar{height:100%; width:0%; background:#00ff99; border-radius:10px;}
-  #particles{position:absolute; top:0; left:0; width:100%; height:100%; z-index:-1;}
-  @media(max-width:600px){ h1{font-size:2em;} input[type="file"]{width:180px;} }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finger Volume Controller</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        .description {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+        
+        .upload-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .upload-btn {
+            background: #4a00e0;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .upload-btn:hover {
+            background: #8e2de2;
+            transform: translateY(-2px);
+        }
+        
+        .file-name {
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
+        
+        .audio-player {
+            width: 100%;
+            margin-bottom: 30px;
+        }
+        
+        .volume-control {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .volume-display {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        .progress-container {
+            width: 100%;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            width: 50%;
+            background: linear-gradient(90deg, #00c6ff, #0072ff);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+        
+        .percentage {
+            font-size: 1rem;
+        }
+        
+        .webcam-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .webcam-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            margin-bottom: 20px;
+        }
+        
+        #webcam {
+            width: 100%;
+            border-radius: 10px;
+            transform: scaleX(-1);
+        }
+        
+        .canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #output {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .instructions {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            width: 100%;
+        }
+        
+        .instructions h3 {
+            margin-bottom: 10px;
+            color: #ffcc00;
+        }
+        
+        .instructions ul {
+            padding-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+        
+        .status {
+            margin-top: 15px;
+            font-weight: bold;
+            text-align: center;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
 </head>
 <body>
+    <div class="container">
+        <h1>👆 Finger Volume Controller 🎚️</h1>
+        
+        <p class="description">
+            Upload your audio file and use your thumb and index finger to control the volume through your webcam!
+        </p>
+        
+        <div class="upload-section">
+            <input type="file" id="audioFile" class="file-input" accept="audio/*">
+            <button class="upload-btn" id="uploadBtn">Choose Audio File</button>
+            <span class="file-name" id="fileName">No file selected</span>
+        </div>
+        
+        <div class="audio-player">
+            <audio id="audioElement" controls style="width: 100%;"></audio>
+        </div>
+        
+        <div class="volume-control">
+            <div class="volume-display">Volume Level</div>
+            <div class="progress-container">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="percentage" id="volumePercentage">50%</div>
+        </div>
+        
+        <div class="webcam-section">
+            <div class="webcam-container">
+                <video id="webcam" autoplay playsinline></video>
+                <div class="canvas-container">
+                    <canvas id="output" width="640" height="480"></canvas>
+                </div>
+            </div>
+            
+            <div class="status" id="status">Webcam starting...</div>
+            
+            <div class="instructions">
+                <h3>How to use:</h3>
+                <ul>
+                    <li>Make sure your webcam can see your hand clearly</li>
+                    <li>Bring your thumb and index finger closer together to decrease volume</li>
+                    <li>Move your thumb and index finger apart to increase volume</li>
+                    <li>Keep other fingers relaxed for best detection</li>
+                </ul>
+            </div>
+        </div>
+    </div>
 
-<h1>Finger Volume Controller Model</h1>
-
-<div class="audio-upload">
-  <label for="audioInput">Upload Audio:</label>
-  <input type="file" id="audioInput" accept="audio/*">
-  <button id="startBtn">Start</button>
-  <audio id="audioPlayer" controls></audio>
-</div>
-
-<div id="controller">
-  <audio id="controllerAudio" autoplay loop></audio>
-  <video id="webcam" autoplay playsinline></video>
-  <canvas id="canvas"></canvas>
-  <div id="volumeBarContainer"><div id="volumeBar"></div></div>
-</div>
-
-<canvas id="particles"></canvas>
-
-<script type="module">
-import {Hands} from 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js';
-import {Camera} from 'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js';
-
-// DOM Elements
-const audioInput = document.getElementById('audioInput');
-const startBtn = document.getElementById('startBtn');
-const audioPlayer = document.getElementById('audioPlayer');
-const controllerDiv = document.getElementById('controller');
-const controllerAudio = document.getElementById('controllerAudio');
-const videoElement = document.getElementById('webcam');
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-const volumeBar = document.getElementById('volumeBar');
-
-// Particle Background
-const particleCanvas = document.getElementById('particles');
-const pctx = particleCanvas.getContext('2d');
-let w = particleCanvas.width = window.innerWidth;
-let h = particleCanvas.height = window.innerHeight;
-const particles=[];
-for(let i=0;i<80;i++){
-  particles.push({x:Math.random()*w,y:Math.random()*h,r:Math.random()*2+1,dx:(Math.random()-0.5)*0.5,dy:(Math.random()-0.5)*0.5});
-}
-function animateParticles(){
-  pctx.clearRect(0,0,w,h);
-  particles.forEach(p=>{
-    pctx.beginPath();
-    pctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-    pctx.fillStyle='rgba(255,255,255,0.15)';
-    pctx.fill();
-    p.x+=p.dx; p.y+=p.dy;
-    if(p.x<0||p.x>w)p.dx*=-1;
-    if(p.y<0||p.y>h)p.dy*=-1;
-  });
-  requestAnimationFrame(animateParticles);
-}
-animateParticles();
-window.addEventListener('resize',()=>{ w=particleCanvas.width=window.innerWidth; h=particleCanvas.height=window.innerHeight; });
-
-// Audio Upload
-let audioFile=null;
-audioInput.addEventListener('change',(e)=>{
-  audioFile=e.target.files[0];
-  if(audioFile){
-    const url=URL.createObjectURL(audioFile);
-    audioPlayer.src=url;
-  }
-});
-
-// Start Controller
-startBtn.addEventListener('click',()=>{
-  if(audioFile){
-    const url=URL.createObjectURL(audioFile);
-    controllerAudio.src=url;
-    controllerAudio.play().catch(()=>console.log('Autoplay blocked'));
-
-    document.querySelector('.audio-upload').style.display='none';
-    controllerDiv.style.display='block';
-    videoElement.style.display='block';
-
-    initFingerVolumeControl();
-  }
-});
-
-// Finger Volume Control
-function initFingerVolumeControl(){
-  canvas.width=window.innerWidth;
-  canvas.height=window.innerHeight;
-
-  const hands = new Hands({locateFile:(file)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-  hands.setOptions({maxNumHands:1,modelComplexity:1,minDetectionConfidence:0.7,minTrackingConfidence:0.7});
-
-  hands.onResults(results=>{
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    if(results.multiHandLandmarks && results.multiHandLandmarks.length>0){
-      const lm=results.multiHandLandmarks[0];
-      const thumb=lm[4], index=lm[8];
-      const dx=(thumb.x-index.x)*canvas.width;
-      const dy=(thumb.y-index.y)*canvas.height;
-      const distance=Math.sqrt(dx*dx+dy*dy);
-
-      let volume=Math.min(Math.max((distance-20)/200,0),1);
-      controllerAudio.volume=volume;
-      volumeBar.style.width=(volume*100)+'%';
-
-      ctx.fillStyle='#00ff99';
-      ctx.beginPath(); ctx.arc(thumb.x*canvas.width,thumb.y*canvas.height,10,0,Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(index.x*canvas.width,index.y*canvas.height,10,0,Math.PI*2); ctx.fill();
-      ctx.strokeStyle='#00ff99';
-      ctx.lineWidth=4;
-      ctx.beginPath(); ctx.moveTo(thumb.x*canvas.width,thumb.y*canvas.height);
-      ctx.lineTo(index.x*canvas.width,index.y*canvas.height);
-      ctx.stroke();
-    }
-  });
-
-  const camera=new Camera(videoElement,{onFrame:async()=>{await hands.send({image:videoElement});},width:640,height:480});
-  camera.start();
-
-  window.addEventListener('resize',()=>{canvas.width=window.innerWidth;canvas.height=window.innerHeight;});
-}
-</script>
-
+    <script>
+        // DOM elements
+        const audioFileInput = document.getElementById('audioFile');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileName = document.getElementById('fileName');
+        const audioElement = document.getElementById('audioElement');
+        const progressBar = document.getElementById('progressBar');
+        const volumePercentage = document.getElementById('volumePercentage');
+        const webcam = document.getElementById('webcam');
+        const output = document.getElementById('output');
+        const status = document.getElementById('status');
+        
+        // Canvas context
+        const ctx = output.getContext('2d');
+        
+        // Audio context for volume control
+        let audioContext;
+        let gainNode;
+        let source;
+        
+        // Volume state
+        let volume = 0.5;
+        
+        // MediaPipe Hands setup
+        const hands = new Hands({
+            locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+            }
+        });
+        
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+        
+        hands.onResults(onHandResults);
+        
+        // Initialize camera
+        const camera = new Camera(webcam, {
+            onFrame: async () => {
+                await hands.send({image: webcam});
+            },
+            width: 640,
+            height: 480
+        });
+        
+        // Start camera
+        camera.start()
+            .then(() => {
+                status.textContent = "Webcam started. Show your hand to control volume.";
+            })
+            .catch((error) => {
+                status.textContent = "Webcam error: " + error.message;
+                console.error(error);
+            });
+        
+        // Process hand results
+        function onHandResults(results) {
+            ctx.save();
+            ctx.clearRect(0, 0, output.width, output.height);
+            ctx.drawImage(results.image, 0, 0, output.width, output.height);
+            
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                
+                // Draw landmarks
+                drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+                drawLandmarks(ctx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 3});
+                
+                // Get thumb and index finger tips (landmarks 4 and 8)
+                const thumbTip = landmarks[4];
+                const indexTip = landmarks[8];
+                
+                // Calculate distance between thumb and index finger
+                const distance = Math.sqrt(
+                    Math.pow(thumbTip.x - indexTip.x, 2) + 
+                    Math.pow(thumbTip.y - indexTip.y, 2)
+                );
+                
+                // Map distance to volume (0 to 1)
+                // Distance typically ranges from 0 to ~0.3 in normalized coordinates
+                volume = Math.min(1, Math.max(0, distance * 3));
+                
+                // Update volume display
+                updateVolumeDisplay();
+                
+                // Update volume in audio context if available
+                if (gainNode) {
+                    gainNode.gain.value = volume;
+                }
+                
+                // Draw line between thumb and index finger
+                ctx.beginPath();
+                ctx.moveTo(thumbTip.x * output.width, thumbTip.y * output.height);
+                ctx.lineTo(indexTip.x * output.width, indexTip.y * output.height);
+                ctx.strokeStyle = '#FF9900';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Draw circle at mid point
+                const midX = (thumbTip.x + indexTip.x) / 2 * output.width;
+                const midY = (thumbTip.y + indexTip.y) / 2 * output.height;
+                
+                ctx.beginPath();
+                ctx.arc(midX, midY, 10, 0, 2 * Math.PI);
+                ctx.fillStyle = 'rgba(255, 153, 0, 0.5)';
+                ctx.fill();
+            }
+            
+            ctx.restore();
+        }
+        
+        // Update volume display
+        function updateVolumeDisplay() {
+            const percentage = Math.round(volume * 100);
+            progressBar.style.width = `${percentage}%`;
+            volumePercentage.textContent = `${percentage}%`;
+            
+            // Change color based on volume level
+            if (percentage < 33) {
+                progressBar.style.background = 'linear-gradient(90deg, #ff9966, #ff5e62)';
+            } else if (percentage < 66) {
+                progressBar.style.background = 'linear-gradient(90deg, #00c6ff, #0072ff)';
+            } else {
+                progressBar.style.background = 'linear-gradient(90deg, #00f260, #0575e6)';
+            }
+        }
+        
+        // Initialize audio context when user selects a file
+        function setupAudioContext() {
+            if (audioContext) {
+                audioContext.close();
+            }
+            
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            gainNode = audioContext.createGain();
+            source = audioContext.createMediaElementSource(audioElement);
+            
+            source.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            // Set initial volume
+            gainNode.gain.value = volume;
+            updateVolumeDisplay();
+        }
+        
+        // Event listeners
+        uploadBtn.addEventListener('click', () => {
+            audioFileInput.click();
+        });
+        
+        audioFileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                fileName.textContent = file.name;
+                
+                const objectURL = URL.createObjectURL(file);
+                audioElement.src = objectURL;
+                
+                // Set up audio context when audio is loaded
+                audioElement.addEventListener('loadedmetadata', () => {
+                    setupAudioContext();
+                    status.textContent = "Audio loaded. Use your thumb and index finger to control volume.";
+                });
+            }
+        });
+        
+        // Initial volume display
+        updateVolumeDisplay();
+    </script>
 </body>
 </html>
